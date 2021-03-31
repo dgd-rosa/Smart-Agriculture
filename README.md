@@ -7,3 +7,4 @@ This is an IOT project where the Arduino communicates via LORA with the cellphon
 * 1 10KOhms Resistor
 * 1 Moisture Sensor
 * IRF520 MOS Driver Module
+* 1 YwRobot 545043
