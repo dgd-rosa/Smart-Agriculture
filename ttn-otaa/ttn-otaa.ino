@@ -32,6 +32,18 @@
 #include <lmic.h>
 #include <hal/hal.h>
 #include <SPI.h>
+#include "DHT.h"
+ 
+#define DHTPIN A1 // pin for DTH11
+#define DHTTYPE DHT11 // DHT 11
+#define SoilPIN A0 //pin for SoilMoisture Sensor
+#define MOTORPIN 6
+DHT dht(DHTPIN, DHTTYPE);
+
+int pumpState = 0; //Pump state (ON or OFF)
+int humidity = 0;
+int temperature = 0;
+int soil_moisture = 0;
 
 // This EUI must be in little-endian format, so least-significant-byte
 // first. When copying an EUI from ttnctl output, this means to reverse
@@ -164,8 +176,37 @@ void uplinkMessageFormat(int moisture, byte humidity, byte temperature, bool pum
     Serial.print(mydata[0]);Serial.print('\t');Serial.println(mydata[1]);
     Serial.print(mydata[2]);Serial.print('\t');Serial.println(mydata[3]);
 }
+
+void measureSensor(){
+  humidity = dht.readHumidity();
+  temperature = dht.readTemperature();
+  soil_moisture = analogRead(SoilPIN);
+  // testa se retorno é valido, caso contrário algo está errado.
+  if (isnan(temperature) || isnan(humidity)) 
+  {
+    Serial.println("Failed to read from DHT");
+  } 
+  else
+  { 
+    //humidity
+    if( humidity < 60){
+      digitalWrite(MOTORPIN, HIGH);
+    }
+    else{
+      digitalWrite(MOTORPIN, LOW);
+    }
+    Serial.print("Humidity: ");
+    Serial.print(humidity);
+    Serial.print(" %\t");
+    Serial.print("Temperature: ");
+    Serial.print(temperature);
+    Serial.println(" ºC");
+  }
+}
+
 void setup() {
     Serial.begin(115200);
+    dht.begin();
     
     Serial.println(F("Starting"));
 
