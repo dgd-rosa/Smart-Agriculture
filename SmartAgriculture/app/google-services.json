@@ -1,0 +1,40 @@
+{
+  "project_info": {
+    "project_number": "464818489947",
+    "firebase_url": "https://lorawan-93164-default-rtdb.europe-west1.firebasedatabase.app",
+    "project_id": "lorawan-93164",
+    "storage_bucket": "lorawan-93164.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:464818489947:android:e128ac4e735ed1c70d8d7e",
+        "android_client_info": {
+          "package_name": "com.example.smartagriculture"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "464818489947-dnjar5qp9vdkf9hutvgeefq50fjkbt34.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBBeb43x955at-zjeTQIyxCLAJ79KTtkK4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "464818489947-dnjar5qp9vdkf9hutvgeefq50fjkbt34.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
