@@ -33,17 +33,21 @@
 #include <hal/hal.h>
 #include <SPI.h>
 #include "DHT.h"
- 
+#include "data.h"
+
 #define DHTPIN A1 // pin for DTH11
 #define DHTTYPE DHT11 // DHT 11
 #define SoilPIN A0 //pin for SoilMoisture Sensor
 #define MOTORPIN 6
 DHT dht(DHTPIN, DHTTYPE);
 
-int pumpState = 0; //Pump state (ON or OFF)
+boolean pumpState = false; //Pump state (ON or OFF)
 int humidity = 0;
 int temperature = 0;
 int soil_moisture = 0;
+int humidity_threshold = 60;
+int temperature_threshold = 24;
+int moisture_threshold = 300;
 
 // This EUI must be in little-endian format, so least-significant-byte
 // first. When copying an EUI from ttnctl output, this means to reverse
@@ -64,15 +68,12 @@ static const u1_t PROGMEM APPKEY[16] = { 0xC9, 0x70, 0xBB, 0xA3, 0xC5, 0x04, 0x7
 void os_getDevKey (u1_t* buf) {  memcpy_P(buf, APPKEY, 16);}
 
 uint8_t mydata[5];
-
 static osjob_t sendjob;
 
 // Schedule TX every this many seconds (might become longer due to duty
 // cycle limitations).
 const unsigned TX_INTERVAL = 10;
 
-/*FUNCTIONS HEADERS*/
-void uplinkMessageFormat(int moisture, byte humidity, byte temperature, bool pumpState);
 
 // Pin mapping
 const lmic_pinmap lmic_pins = {
@@ -85,6 +86,9 @@ const lmic_pinmap lmic_pins = {
 void onEvent (ev_t ev) {
     Serial.print(os_getTime());
     Serial.print(": ");
+
+    byte downlinkData[2] = "";
+    
     switch(ev) {
         case EV_SCAN_TIMEOUT:
             Serial.println(F("EV_SCAN_TIMEOUT"));
@@ -126,6 +130,35 @@ void onEvent (ev_t ev) {
               Serial.println(F("Received "));
               Serial.println(LMIC.dataLen);
               Serial.println(F(" bytes of payload"));
+              for (int i = 0; i < LMIC.dataLen; i++){
+                if (LMIC.frame[LMIC.dataBeg + i] < 0x10) {
+                  Serial.print(F("0"));
+                }
+                Serial.println(LMIC.frame[LMIC.dataBeg + i], HEX);
+
+                downlinkData[i] = LMIC.frame[LMIC.dataBeg + i];
+              }
+              if(downlinkData[0] == "p"){
+                if(downlinkData[1]==1){
+                  pumpState = true;
+                  Serial.println("Downlink: Turning On the Pump");
+                } else if(downlinkData[1]==0){
+                  pumpState = false;
+                  Serial.println("Downlink: Turning On the Pump");
+                }
+              } else if (downlinkData[0] == "h"){
+                Serial.print("Downlink: Changing Humidity Threshold: ");
+                Serial.println(downlinkData[1]);
+                humidity_threshold = downlinkData[1];
+              } else if (downlinkData[0] == "t") {
+                Serial.print("Downlink: Changing Temperature Threshold: ");
+                Serial.println(downlinkData[1]);
+                temperature_threshold = downlinkData[1];
+              } else if (downlinkData[0] == "m") {
+                Serial.print("Downlink: Changing Moisture Threshold: ");
+                Serial.println(downlinkData[1]);
+                moisture_threshold = downlinkData[1];
+              }
             }
             // Schedule next transmission
             os_setTimedCallback(&sendjob, os_getTime()+sec2osticks(TX_INTERVAL), do_send);
@@ -157,6 +190,9 @@ void do_send(osjob_t* j){
     if (LMIC.opmode & OP_TXRXPEND) {
         Serial.println(F("OP_TXRXPEND, not sending"));
     } else {
+        //measurements of the environment
+        measureSensor();
+        uplinkMessageFormat();
         // Prepare upstream data transmission at the next possible time.
         LMIC_setTxData2(1, mydata, sizeof(mydata)-1, 0);
         Serial.println(F("Packet queued"));
@@ -164,13 +200,13 @@ void do_send(osjob_t* j){
     // Next TX is scheduled after TX_COMPLETE event.
 }
 
-void uplinkMessageFormat(int moisture, byte humidity, byte temperature, bool pumpState){
-    moisture = (unsigned int)moisture;
+void uplinkMessageFormat(){
+    soil_moisture = (unsigned int)soil_moisture;
     unsigned int mask = 0xff;
     mydata[0] = temperature;   
     mydata[1] = humidity;
-    mydata[2] = moisture & mask;
-    mydata[3] = moisture>>8;
+    mydata[2] = soil_moisture & mask;
+    mydata[3] = soil_moisture>>8;
     mydata[3] += pumpState<<7;
     Serial.println("Messages per byte: ");
     Serial.print(mydata[0]);Serial.print('\t');Serial.println(mydata[1]);
@@ -188,19 +224,14 @@ void measureSensor(){
   } 
   else
   { 
-    //humidity
-    if( humidity < 60){
-      digitalWrite(MOTORPIN, HIGH);
-    }
-    else{
-      digitalWrite(MOTORPIN, LOW);
-    }
     Serial.print("Humidity: ");
     Serial.print(humidity);
     Serial.print(" %\t");
     Serial.print("Temperature: ");
     Serial.print(temperature);
     Serial.println(" ºC");
+    Serial.print("%\tHumidity: ");
+    Serial.print(humidity);
   }
 }
 
@@ -216,8 +247,6 @@ void setup() {
     digitalWrite(VCC_ENABLE, HIGH);
     delay(1000);
     #endif
-    //SENDS THE MESSAGE
-    uplinkMessageFormat(10, 20, 30, 1);
     // LMIC init
     os_init();
     // Reset the MAC state. Session and pending data transfers will be discarded.
@@ -228,5 +257,17 @@ void setup() {
 }
 
 void loop() {
+    
+    if(temperature > temperature_threshold || humidity < humidity_threshold || soil_moisture < moisture_threshold ){
+      if(pumpState = false){
+        pumpState = true;
+        digitalWrite(MOTORPIN, HIGH);
+      }
+    } else{
+      if (pumpState == true){
+        pumpState = false;
+        digitalWrite(MOTORPIN, LOW);
+      }
+    }
     os_runloop_once();
 }
